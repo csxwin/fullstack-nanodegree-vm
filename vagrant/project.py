@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 app = Flask(__name__)
 
 from sqlalchemy import create_engine
@@ -54,6 +54,7 @@ def newMenuItem(restaurant_id):
         print menuItem.name
         session.add(menuItem)
         session.commit()
+        flash("new menu created!")
         return redirect(url_for('restaurantMenu', restaurant_id = restaurant_id))
     else:
         return render_template('newmenuitem.html', 
@@ -66,9 +67,11 @@ def editMenuItem(restaurant_id, menu_id):
     menu = session.query(MenuItem).filter_by(id = menu_id).one()
     if request.method == 'POST':
         menuItemQuery = session.query(MenuItem).filter_by(id = menu_id).one()
+        oldmenu = menuItemQuery.name
         menuItemQuery.name = request.form['name']
         session.add(menuItemQuery)
         session.commit()
+        flash("{} changed to {}!".format(oldmenu, menuItemQuery.name))
         return redirect(url_for('restaurantMenu', restaurant_id = restaurant_id))
     else:
         return render_template('editmenuitem.html', 
@@ -79,9 +82,30 @@ def editMenuItem(restaurant_id, menu_id):
 
 @app.route('/restaurants/<int:restaurant_id>/<int:menu_id>/delete/', methods = ['GET', 'POST'])
 def deleteMenuItem(restaurant_id, menu_id):
-    return "page to delete a menu item. Task 3 complete!"
+    item = session.query(MenuItem).filter_by(id = menu_id).one()
+    if request.method == 'POST':
+        session.delete(item)
+        session.commit()
+        flash("{} deleted!".format(item.name))
+        return redirect(url_for('restaurantMenu', restaurant_id = restaurant_id))
+    else:
+        return render_template('deletemenuitem.html',
+            restaurant_id = restaurant_id,
+            item = item)
+
+@app.route('/restaurants/<int:restaurant_id>/menu/JSON')
+def restaurantMenuJSON(restaurant_id):
+    restaurant = session.query(Restaurant).filter_by(id = restaurant_id).one()
+    items = session.query(MenuItem).filter_by(restaurant_id = restaurant_id).all()
+    return jsonify(MenuItems = [i.serialize for i in items])
+
+@app.route('/restaurants/<int:restaurant_id>/menu/<int:menu_id>/JSON')
+def restaurantMenuIdJSON(restaurant_id, menu_id):
+    items = session.query(MenuItem).filter_by(id = menu_id).all()
+    return jsonify(MenuItems = [i.serialize for i in items])
 
 if __name__ == '__main__':
+    app.secret_key = 'super_secret_key'
     app.debug = True
     app.run(host = '0.0.0.0', port = 5000)
     
